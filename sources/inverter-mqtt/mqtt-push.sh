@@ -17,7 +17,6 @@ if [[ $INFLUX_ENABLED == "true" ]] ; then
     INFLUX_DEVICE=`cat /etc/inverter/mqtt.json | jq '.influx.device' -r`
     INFLUX_PREFIX=`cat /etc/inverter/mqtt.json | jq '.influx.prefix' -r`
     INFLUX_DATABASE=`cat /etc/inverter/mqtt.json | jq '.influx.database' -r`
-    INFLUX_MEASUREMENT_NAME=`cat /etc/inverter/mqtt.json | jq '.influx.namingMap.'$1'' -r`
 fi
 
 pushMQTTData () {
@@ -38,6 +37,7 @@ pushMQTTData () {
 }
 
 pushInfluxData () {
+    INFLUX_MEASUREMENT_NAME=`cat /etc/inverter/mqtt.json | jq '.influx.namingMap.'$1'' -r`
     curl -i -XPOST "$INFLUX_HOST/write?db=$INFLUX_DATABASE&precision=s" -u "$INFLUX_USERNAME:$INFLUX_PASSWORD" --data-binary "$INFLUX_PREFIX,device=$INFLUX_DEVICE $INFLUX_MEASUREMENT_NAME=$2"
 }
 
