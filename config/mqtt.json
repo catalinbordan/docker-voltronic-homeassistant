@@ -49,7 +49,12 @@
             "Max_charge_current": "max_charge_current",
             "Out_source_priority": "output_source_priority",
             "Charger_source_priority": "charger_source_priority",
-            "Battery_redischarge_voltage":  "battery_re_discharge_voltage"
+            "Battery_redischarge_voltage":  "battery_re_discharge_voltage",
+            "PV2_in_current": "pv2_in_current",
+            "PV2_in_voltage": "pv2_in_voltage",
+            "PV2_in_watts": "pv2_in_watts",
+            "PV2_charging_power": "pv2_charging_power",
+            "PV_total_charging_power": "pv_total_charging_power"
         }
     }
 }

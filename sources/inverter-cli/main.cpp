@@ -32,6 +32,7 @@ atomic_bool ups_status_changed(false);
 atomic_bool ups_qmod_changed(false);
 atomic_bool ups_qpiri_changed(false);
 atomic_bool ups_qpigs_changed(false);
+atomic_bool ups_qpigs2_changed(false);
 atomic_bool ups_qpiws_changed(false);
 atomic_bool ups_cmd_executed(false);
 
@@ -43,6 +44,7 @@ string devicename;
 // int runinterval;
 float ampfactor;
 float wattfactor;
+int mppt_count;
 
 // ---------------------------------------
 
@@ -85,6 +87,8 @@ void getSettingsFile(string filename) {
                     attemptAddSetting(&ampfactor, linepart2);
                 else if(linepart1 == "watt_factor")
                     attemptAddSetting(&wattfactor, linepart2);
+                else if(linepart1 == "mppt_count")
+                    attemptAddSetting(&mppt_count, linepart2);
                 else
                     continue;
             }
@@ -97,7 +101,7 @@ void getSettingsFile(string filename) {
 
 int main(int argc, char* argv[]) {
 
-// Reply1
+// Reply_qpigs
 float voltage_grid;
 float freq_grid;
 float voltage_out;
@@ -123,7 +127,14 @@ int eeprom_version;
 int pv_charging_power;
 char device_status2[3];
 
-// Reply2
+// Reply_qpigs2
+float pv2_input_current;
+float pv2_input_voltage;
+float pv2_input_watts;
+int pv2_charging_power;
+int pv_total_charging_power;
+
+// Reply_qpiri
 float grid_voltage_rating;
 float grid_current_rating;
 float out_voltage_rating;
@@ -182,6 +193,9 @@ float batt_redischarge_voltage;
         exit(0);
     }
 
+    if (mppt_count < 2) {
+        ups_qpigs2_changed = true;
+    }
 
     if (runOnce)
         ups->poll();
@@ -200,21 +214,35 @@ float batt_redischarge_voltage;
             ups_status_changed = false;
         }
 
+        if (mppt_count < 2) {
+            ups_qpigs2_changed = true;
+        }
+
+        lprintf("DEBUG: ups_qmod_changed %s, ups_qpiri_changed %s, ups_qpigs_changed %s, ups_qpigs2_changed %s", 
+            ups_qmod_changed ? "true" : "false", 
+            ups_qpiri_changed ? "true" : "false", 
+            ups_qpigs_changed ? "true" : "false",
+            ups_qpigs2_changed ? "true": "false");
       // Once we receive all queries print it to screen
-        if (ups_qmod_changed && ups_qpiri_changed && ups_qpigs_changed) {
+        if (ups_qmod_changed && ups_qpiri_changed && ups_qpigs_changed && ups_qpigs2_changed) {
             ups_qmod_changed = false;
             ups_qpiri_changed = false;
             ups_qpigs_changed = false;
+            if (mppt_count >= 2) {
+                // We only read QPIGS2 if it is enabled.
+                ups_qpigs2_changed = false;
+            }
 
             int mode = ups->GetMode();
-            string *reply1   = ups->GetQpigsStatus();
-            string *reply2   = ups->GetQpiriStatus();
+            string *reply_qpigs   = ups->GetQpigsStatus();
+            string *reply_qpiri   = ups->GetQpiriStatus();
+            string *reply_qpigs2   = ups->GetQpigs2Status();
             string *warnings = ups->GetWarnings();
 
-            if (reply1 && reply2 && warnings) {
+            if (reply_qpigs && reply_qpiri && reply_qpigs2 && warnings) {
 
                 // Parse and display values, QPIGS, * means contained in output, ^ is not included in output
-                sscanf(reply1->c_str(), "%f %f %f %f %d %d %d %d %f %d %d %d %f %f %f %d %s %d %d %d %s",
+                sscanf(reply_qpigs->c_str(), "%f %f %f %f %d %d %d %d %f %d %d %d %f %f %f %d %s %d %d %d %s",
                        &voltage_grid,          // * Grid voltage
                        &freq_grid,             // * Grid frequency
                        &voltage_out,           // * AC output voltage
@@ -238,7 +266,7 @@ float batt_redischarge_voltage;
                        &device_status2);
 
                 char parallel_max_num; //QPIRI
-                sscanf(reply2->c_str(), "%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %c %d %d %d %f",
+                sscanf(reply_qpiri->c_str(), "%f %f %f %f %f %d %d %f %f %f %f %f %d %d %d %d %d %d %c %d %d %d %f",
                        &grid_voltage_rating,      // ^ Grid rating voltage
                        &grid_current_rating,      // ^ Grid rating current per protocol, frequency in practice
                        &out_voltage_rating,       // ^ AC output rating voltage
@@ -265,20 +293,34 @@ float batt_redischarge_voltage;
                                                   // ^ PV OK condition for parallel
                                                   // ^ PV power balance
 
+                // QPIGS2 (MPPT2)
+                if (mppt_count >= 2) {
+                    sscanf(reply_qpigs2->c_str(), "%f %f %d",
+                        &pv2_input_current,          // * PV2 Input current
+                        &pv2_input_voltage,          // * PV2 Input voltage
+                        &pv2_charging_power          // * PV2 Charging power
+                        );
+                }
+
+                pv_total_charging_power = pv_charging_power + pv2_charging_power;
+
                 // There appears to be a discrepancy in actual DMM measured current vs what the meter is
                 // telling me it's getting, so lets add a variable we can multiply/divide by to adjust if
                 // needed.  This should be set in the config so it can be changed without program recompile.
                 if (debugFlag) {
                     printf("INVERTER: ampfactor from config is %.2f\n", ampfactor);
                     printf("INVERTER: wattfactor from config is %.2f\n", wattfactor);
+                    printf("INVERTER: MPPT count from config is %d\n", mppt_count);
                 }
 
                 pv_input_current = pv_input_current * ampfactor;
+                pv2_input_current = pv2_input_current * ampfactor;
 
                 // It appears on further inspection of the documentation, that the input current is actually
                 // current that is going out to the battery at battery voltage (NOT at PV voltage).  This
                 // would explain the larger discrepancy we saw before.
                 pv_input_watts = (scc_voltage * pv_input_current) * wattfactor;
+                pv2_input_watts = (scc_voltage * pv2_input_current) * wattfactor;
 
                 // Calculate watt-hours generated per run interval period (given as program argument)
                 // pv_input_watthour = pv_input_watts / (3600000 / runinterval);
@@ -325,12 +367,20 @@ float batt_redischarge_voltage;
                 printf("  \"Out_source_priority\":%d,\n", out_source_priority); // QPIRI
                 printf("  \"Charger_source_priority\":%d,\n", charger_source_priority); // QPIRI
                 printf("  \"Battery_redischarge_voltage\":%.1f,\n", batt_redischarge_voltage);  // QPIRI
+                if (mppt_count >= 2) {
+                    printf("  \"PV2_in_voltage\":%.1f,\n", pv2_input_voltage);  // QPIGS2
+                    printf("  \"PV2_in_current\":%.1f,\n", pv2_input_current);  // QPIGS2
+                    printf("  \"PV2_in_watts\":%.1f,\n", pv2_input_watts);      // = (scc_voltage * pv2_input_current) * wattfactor;
+                    printf("  \"PV2_charging_power\":%d,\n", pv2_charging_power); // QPIGS2
+                }
+                printf("  \"PV_total_charging_power\":%d,\n", pv_total_charging_power);
                 printf("  \"Warnings\":\"%s\"\n", warnings->c_str());     //
                 printf("}\n");
 
                 // Delete reply string so we can update with new data when polled again...
-                delete reply1;
-                delete reply2;
+                delete reply_qpigs;
+                delete reply_qpiri;
+                delete reply_qpigs2;
 
                 if(runOnce) {
                     // there is no thread -- ups->terminateThread();

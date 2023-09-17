@@ -54,6 +54,10 @@ views:
           - entity: sensor.pv_in_watts
           - entity: sensor.pv_in_current
           - entity: sensor.pv_in_voltage
+          - entity: sensor.pv2_in_watts
+          - entity: sensor.pv2_in_current
+          - entity: sensor.pv2_in_voltage
+          - entity: sensor.pv_total_charging_power
           - entity: sensor.battery_charge_current
           - entity: sensor.battery_discharge_current
           - entity: sensor.battery_voltage

@@ -5,6 +5,8 @@ This is a fork from ned-kelly version with improved changes from  kchiem, dilyan
 - now you can transmit commands to inverter bigger then 5 characters by sending them in batch of 5 characters .
 - Battery redicharge voltage - now show good values.
 - many changes witch I don't remember :)
+- Add support for 2 MPPT
+- Fix the bulk command write to work since the inverter requires full 8 byte blocks at a time
 
 **The instructions to use this fork are at the end of readme and I have taking in consideration that you allready have installed and followed the intructions of original repository of ned-kelly. If you start from zero, then install docker and docker-compose and then skip to no 5.**
 

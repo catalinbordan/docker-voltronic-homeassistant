@@ -10,8 +10,9 @@ using namespace std;
 class cInverter {
   unsigned char buf[1024]; //internal work buffer
   char warnings[1024];
-  char status1[1024];
-  char status2[1024];
+  char status_qpigs[1024];
+  char status_qpiri[1024];
+  char status_qpigs2[1024];
   char mode;
   std::string device;
   std::mutex m;
@@ -38,6 +39,7 @@ public:
 
   string *GetQpiriStatus();
   string *GetQpigsStatus();
+  string *GetQpigs2Status();
   string *GetWarnings();
 
   int GetMode();
